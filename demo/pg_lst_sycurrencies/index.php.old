@@ -1,0 +1,139 @@
+<?php if (! SYS) die;
+
+//require 'vars.php';
+
+function grid_format($col, $val, $row, $orow)
+{
+	global $_company;
+
+	if ($_REQUEST['suggest'] && $col == 'Currency')
+		return '&lt;a href="#" onclick="suggestSetValueAndLabel(\''.$_REQUEST['suggest'].'\', \''.$row['fullname'].'\', \''.$val.'\', \''.$_REQUEST['nextfield'].'\', \''.$_REQUEST['listid'].'\');" &gt;'.$val.'&lt;/a&gt;';
+	return
+		$val;
+}
+
+$page = 'sycurrencies';
+
+$params = array($lang, $company);
+
+initPage();
+
+$cur_table = CURRENCY::TBL;
+
+if ($_REQUEST['q'])
+{
+	$where = 'C.Currency LIKE ? OR Text LIKE ? OR NumCode LIKE ?';
+	$q = '%'.$_REQUEST['q'].'%';
+	$params[] = $q;
+	$params[] = $q;
+	$params[] = $q;
+}
+elseif ($_REQUEST['suggest'])
+{
+	$where = 'C.Company = ? AND ExchageRate IS NOT NULL';
+	$params[] = $company;
+	$cur_table = CURRENCY::TBL_COMP;
+}
+
+if ($where) $where = ' WHERE '.$where;
+
+if (! $_REQUEST['suggest']) $select = ', NumCode, Symbol';
+
+
+//$SEC_TRANS = 'AADMIN';
+
+$fields = array(
+	array(
+	'lbl' => text('Currency'),
+	'field' => 'Currency',
+	'size' => '30',
+	'maxlength' => 3,
+	'editable' => true,
+	'align' => 'center',
+	'required' => true,
+	),
+	array(
+	'lbl' => text('Description'),
+	'field' => 'descripcion',
+	'size' => '60',
+	//'align' => 'center',
+	'editable' => true,
+	'type' => 'translation',
+	'langs' => $langs,
+	'required' => true,
+));
+
+if (! $_REQUEST['suggest'])
+	$fields = array_merge($fields, array(
+	array(
+	'lbl' => text('Code'),
+	'field' => 'NumCode',
+	'size' => '30',
+	'maxlength' => 3,
+	'editable' => true,
+	'required' => true,
+	'align' => 'center',
+	),
+	array(
+	'lbl' => text('Symbol'),
+	'field' => 'Symbol',
+	'size' => '30',
+	'maxlength' => 3,
+	'editable' => true,
+	'required' => true,
+	'align' => 'center',
+	)));
+
+
+$fields = array_merge($fields, array(
+	array(
+	'lbl' => text('Date'),
+	'field' => 'Date',
+	'size' => '30',
+	//'editable' => true,
+	'align' => 'center',
+	'type' => 'date',
+	),
+	array(
+	'lbl' => text('Exchange').' '.text('Rate'),
+	'field' => 'ExchageRate',
+	'size' => '30',
+	'align' => 'center',
+	//'editable' => true,
+	),
+	addField('SYUSER'),
+	addField('TIMESTAMP'),
+	addField('INFO'),
+));
+
+$query ='
+SELECT C.Currency id, C.Currency, Text descripcion'.$select.', MAX(Date) Date, ExchageRate, 
+C.`User`, C.TimeStamp, CONCAT(C.`User`, "|", UNIX_TIMESTAMP(C.TimeStamp)) info
+FROM '.$cur_table.' C
+LEFT JOIN '.CURRENCY::TBL_LANG.' T ON C.Currency = T.Currency AND T.Language = ?
+LEFT JOIN '.CURRENCY::TBL_EXCH.' EX ON C.Currency = EX.Currency AND EX.Company = ?'.$where.' 
+GROUP BY C.Currency
+ORDER BY C.Currency
+';
+
+processGrid(
+$caption,
+$page,
+$fields,
+'id',
+$query,
+$params,
+'&q='.$_REQUEST['q'].'&nextfield='.$_REQUEST['nextfield'].'&listid='.$_REQUEST['listid'],
+'',
+$tablekey,
+$table,
+'',
+true,
+array(),
+false,
+true,
+'150',
+'450',
+array('User' => $userid)
+);
+?>

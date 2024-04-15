@@ -1,0 +1,145 @@
+<?php if (! SYS) die;
+
+function grid_confirmSave(&$extrarowdata)
+{
+	global $company, $db;
+
+	$r = $db->getOne('SELECT UserId FROM '.COMPANY::TBL_USERS.' WHERE Company = ? AND UserId = ?', array($company, $_REQUEST['UserId']));
+	if (empty($r['UserId']))
+		return 'Sólo puede seleccionar un usuario de la compañía.';
+	
+	$r = $db->getOne('SELECT UserId FROM '.CORE::TBL_USERS.' WHERE UserId = ? AND Type IN ("A", "B", "C")', array($_REQUEST['UserId']));
+	if (empty($r['UserId']))
+		return 'Sólo puede seleccionar un usuario de tipo A, B o C.';
+	
+	$beg = CORE::getMySQLDate($_REQUEST['DateBeg']);
+	$end = CORE::getMySQLDate($_REQUEST['DateEnd']);
+	
+	if ($end < $beg)
+		return 'La fecha de fin no puede ser inferior a la de inicio.';
+	
+	$today = date('Y-m-d');
+	
+	if ($beg < $today)
+		return 'La fecha de inicio no puede ser pasada.';
+	
+	if ($end < $today)
+		return 'La fecha de fin no puede ser pasada.';
+	
+	return true;
+}
+
+function grid_confirmDel($id)
+{
+	global $db, $company;
+	
+	$p = explode('|', $id);
+	
+	$r = $db->getOne('SELECT Close FROM '.SECURITY::TBL_USRSUPP.' WHERE Company = ? AND UserId = ?', array($company, $p[1]));
+	
+	if ($r['Close'] == 1) return 'Registro cerrado, no puede borrarse.';
+	
+	return true;
+}
+
+require 'vars.php';
+$page = 'syuserssupportaccess';
+$params = array($company);
+initPage();
+initFilters();
+addFilter('SYUSERID');
+//addFilter('INACTIVEDL');
+
+$fields = array(
+	array_merge(addField('SYUSERID'), array(
+	'field' => 'UserId',
+	'suggest_id' => 'usersa',
+	'suggest_browse' => 'syusersaf'
+	)),			
+	addField('DATEBEG'),
+	addField('DATEEND'),
+	array(
+	'lbl' => text('Title'),
+	'field' => 'Title',
+	'size' => '60',
+	'editable' => true
+	),
+	array(
+	'lbl' => text('Documentation'),
+	'field' => 'Documentation',
+	'type' => 'textarea',
+	'cols' => 40,
+	'hideingrid' => true,
+	'editable' => true
+	),
+	array(
+	'lbl' => text('Resolution'),
+	'field' => 'Resolution',
+	'type' => 'textarea',
+	'cols' => 40,
+	'hideingrid' => true,
+	'editable' => true
+	),
+	array_merge(addField('INACTIVE'), array(
+	'lbl' => text('Closed'),
+	'field' => 'Closed'
+	)),			
+    addField('INACTIVE'),
+    addField('SYUSER'),
+    addField('TIMESTAMP'),
+    addField('INFO'),
+);
+
+$query = '
+SELECT CONCAT(A.Company, "|", UserId ) id, 
+UserId, DateBeg, DateEnd, Title, Documentation, Resolution, Closed, Inactive, `User`, 
+TimeStamp, CONCAT(`User`, "|", UNIX_TIMESTAMP(TimeStamp)) info
+FROM '.SECURITY::TBL_USRSUPP.' A
+WHERE Company = ?
+';
+
+if ($_REQUEST['fltrs'][0])
+{
+	$query .= ' AND UserId = ?';
+	$params[] = $_REQUEST['fltrs'][0];
+}
+
+$appendurl = '&q='.$_REQUEST['q'].'&nextfield='.$_REQUEST['nextfield'].'&listid='.$_REQUEST['listid'];
+//echo $appendurl;
+
+$data = array('User' => $userid);
+
+if ($_REQUEST['action'] == 'edit')
+{
+	if ($_REQUEST['oper'] == 'edit')
+	{
+		list($comp, $id) = explode('|', $_REQUEST['id']);
+		$r = $db->getOne('SELECT ChangesLog FROM '.SECURITY::TBL_USRSUPP.' WHERE Company = ? AND UserId = ?', array($company, $id));
+		$data['ChangesLog'] = (empty($r['ChangesLog']) ? array() : json_decode($r['ChangesLog']));		
+	}
+	else
+		$data['ChangesLog'] = array();
+	$data['ChangesLog'][] = array('User' => $_REQUEST['UserId'], 'TimeStamp' => date('Y-m-d H:i:s'), 'DateBeg' => $_REQUEST['DateBeg'], 'DateEnd' => $_REQUEST['DateEnd'], 'Title' => $_REQUEST['Title'], 'Documentation' => $_REQUEST['Documentation']);
+	$data['ChangesLog'] = json_encode($data['ChangesLog']);
+}
+
+processGrid(
+$caption,
+$page,
+$fields,
+'id',
+$query,
+$params,
+$appendurl,
+'',
+$tablekey,
+$table,
+$filters,
+true,
+array('Company' => $company, 'User' => $userid),
+false,
+true,
+'120',
+'500',
+$data
+);

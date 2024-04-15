@@ -1,0 +1,218 @@
+<?php if (! SYS) die;
+
+
+function grid_format($col, $val, $row, $orow) {
+
+	global $_company, $company;
+
+	if ($col == 'Price')
+		return $_company->numberFormat($val);
+
+
+	if ($col == 'Attachment')
+	{
+		if ($val)
+		{
+			$info = pathinfo($val);
+			return '<a href="#" onclick="window.open(\''.getResourceURL('hremployeesassignments-Description', $company, $info['filename']).'\', \'_blank\');"><img src="img/attachment2.png" /></a>';
+		}
+		return '';
+	}
+
+	return $val;
+}
+
+//require 'vars.php';
+
+$page = 'hremployeesassignments';
+$_REQUEST['multiselect'] = 1;
+
+
+$params = array($country, $lang, $lang, $company);
+
+initPage();
+
+initFilters();
+
+$filters['filters'][] =
+	array(
+	'lbl' => text('Assignment'),
+	'field' => 'AssignmentType',
+	'type' => 'suggest','width' => '50',
+ 	'suggest_id' => 'assignmentstypes',
+	'suggest_browse' => 'hrassignmentstypesf'
+	);
+$filters['filters'][] =
+	array(
+	'lbl' => 'Serial No.',
+	'field' => 'SerialNumber',
+	'width' => '120',
+	'size' => '50',
+	'type' => 'text'
+	);
+//addFilter('DATERANGE');
+
+
+if ($_REQUEST['action']) {
+
+	filter(array('A.AssignmentType','ART.Text','ARTBYC.Text'));
+
+	filter('SerialNumber', 'L');
+
+}
+
+$fields = array(
+	addField('SYCOMPANY'),
+	addField('HREMPLOYEE'),
+	addField('HREMPLOYEENAME'),
+	
+	array(
+	'lbl' => text('Assignment').' '.text('Type'),
+	'field' => 'AssignmentType',
+	'size' => '30',
+	'maxlength' => 2,
+	'editable' => true,
+	'align' => 'center',
+	'required' => true,
+	'type' => 'suggest',
+	'suggest_id' => 'assignmentstypes',
+	'suggest_browse' => 'hrassignmentstypesf'
+	),
+	array(
+	'lbl' => text('Description'),
+	'field' => 'AssignmentTypeDesc',
+	'size' => '60',
+	'width' => 30,
+	'align' => 'center',
+	),
+	array(
+	'lbl' => text('Secuency'),
+	'field' => 'Secuency',
+	'size' => '30',
+	'maxlength' => 20,
+	'editable' => true,
+	'readonly' => true,
+	//'required' => true,
+	),
+	 array(
+	'lbl' => text('Price'),
+	'field' => 'Price',
+	'ord' => 'Salary',
+	'size' => '25',
+	'align' => 'right',
+	'editable' => true,
+	'normalizeNumber' => true,
+	'type' => 'calculator',
+	),
+	  array(
+	'lbl' => text('Size'),
+	'field' => 'Size',
+	'size' => '25',
+	'align' => 'center',
+	'editable' => true,
+	'normalizeNumber' => true
+	),
+	array(
+	'lbl' => 'Serial No.',
+	'field' => 'SerialNumber',
+	'size' => '30',
+    'hideingrid' => false,
+    'align' => 'center',
+	'editable' => true,
+	'maxlength' => 60
+	),
+	array(
+	'lbl' => text('Assignment').' '.text('Date'),
+	'field' => 'AssignmentDate',
+	'size' => '30',
+	'editable' => true,
+	'type' => 'date',
+	'align' => 'center',
+	),
+	array(
+	'lbl' => text('Return').' '.text('Date'),
+	'field' => 'ReturnDate',
+	'size' => '30',
+	'editable' => true,
+	'type' => 'date',
+	'align' => 'center',
+	),
+	array(
+	'lbl' => text('Description'),
+	'field' => 'Description',
+	'size' => '30',
+	'maxlength' => 20,
+	'editable' => true,
+	'required' => true,
+	'align' => 'center',
+	'attach' => true,
+	'attach_width' => 700,
+	'attach_height' => 700,
+	),
+	array(
+	'lbl' => text('Attachment'),
+	'field' => 'Attachment',
+	'size' => '30',
+	'align' => 'center'
+	),
+	array_merge(
+	addField('NOTE'),
+	array(
+	'hideingrid' => true,
+	'type' => 'textarea',
+	'cols' => 10,
+	'rows' => 12,
+	'size' => 60
+	)),
+	addField('SYUSER'),
+	addField('TIMESTAMP'),
+	addField('INFO'),
+);
+
+
+$query = '
+SELECT CONCAT(A.Company, "|", A.Employee, "|", A.AssignmentType, "|", A.`Secuency`, "|", SerialNumber) id,
+A.Company, A.Employee, CONCAT(FirstName, " ", LastName) NameEmployee, A.AssignmentType, IF(ARTBYC.Text IS NULL OR ARTBYC.Text = "", ART.Text, ARTBYC.Text) AssignmentTypeDesc,   A.`Secuency`, Price, Size, SerialNumber, AssignmentDate, ReturnDate, Description, Attachment, A.Note,
+A.`User`,  A.TimeStamp, CONCAT(A.`User`, "|", UNIX_TIMESTAMP(A.TimeStamp)) info
+FROM
+'.EMPLOYEE::TBL.' E,
+HR_EmployeesAssignments A
+LEFT JOIN HR_AssignmentsTypesTexts ART ON A.AssignmentType = ART.AssignmentType AND ART.Country = ? AND ART.Language = ?
+LEFT JOIN HR_AssignmentsTypesByCompaniesTexts ARTBYC ON A.AssignmentType = ARTBYC.AssignmentType AND A.Company = ARTBYC.Company AND ARTBYC.Language = ?
+WHERE E.Employee = A.Employee AND A.Company = E.Company AND A.Company = ?
+'.$where;
+
+//debuglog('prueba',$query.'\n'.print_r($params,true));
+//$emps = $db->fetchAll($query, $params);
+
+//queryLog('employeeassigm', $query, $params, $emps, true);
+
+//debuglog('query', $query.' '.print_r($params, true));
+
+if ($_REQUEST['action'] == 'edit' && $_REQUEST['oper'] != 'del' && empty($_REQUEST['Secuency']))
+{
+	$r = $db->getOne('SELECT MAX(Secuency) s FROM HR_EmployeesAssignments WHERE Company = ? AND Employee = ? AND AssignmentType = ?', array($company, $_REQUEST['Employee'], $_REQUEST['AssignmentType']));
+	$_REQUEST['Secuency'] = sprintf('%04d', (empty($r['s']) ? 1 : $r['s'] + 1));
+}
+
+processGrid(
+$caption,
+$page,
+$fields,
+'id',
+$query,
+$params,
+'',
+'',
+$tablekey,
+$table,
+$filters,
+true,
+array(),
+false,
+true,
+$formheight,
+$formwidth,
+array('Company' => $company, 'User' => $userid)
+);
+?>

@@ -1,0 +1,221 @@
+<?php if (! SYS) die;
+
+
+require 'vars.php';
+require_once LIB_DIR.'GoogleAuthenticator/GoogleAuthenticator.php';
+
+
+$page   = 'recandidatesusers';
+
+$params = array($company);
+
+initPage();
+
+initFilters();
+
+addFilter('RECANDIDATE');
+
+$filters['filters'][] = array(
+    'lbl' => 'Bloqueado',
+    'type' => 'droplist',
+    'values' => $val_Checked,
+);
+
+addFilter('INACTIVEDL');
+
+if ($_REQUEST['action']) {
+
+    if ($_REQUEST['fltrs'][1]) {
+        $where[]        = ($_REQUEST['fltrs'][1] == 'X') ? 'Blocked' : 'Blocked = 0';
+    }
+    if ($_REQUEST['fltrs'][2]) {
+        $where[]        = ($_REQUEST['fltrs'][2] == 'X') ? 'Inactive' : 'Inactive = 0';
+    }
+    debuglog($page, $where);
+    if ($where && is_array($where))
+        $where  = 'AND ' . implode(' AND ', $where);
+}
+
+
+
+if ($user = $_REQUEST['toggleLock']) {
+
+    $db->update(EMPLOYEE::TBL, array('LoginErrors' => 0, 'Blocked' => 0), 'Employee', $user);
+
+}
+/*
+
+if ($user = $_REQUEST['regenerate']) {
+    
+    SECURITY::regenerateToken($user, EMPLOYEE::TBL);
+}
+
+if ($user = $_REQUEST['resettoken']) {
+
+        $db->update(EMPLOYEE::TBL, array('TokenSeed' => ''), 'Employee', $user);
+
+}
+/*
+if ($user = $_REQUEST['download']) {
+
+    $secret = SECURITY::getToken($user);
+    $g = new \Google\Authenticator\GoogleAuthenticator();
+    $url = $g->getURL($user, TFA_COMPANY, $secret);
+    $body = SECURITY::getTokenPageBody($user, $secret, $url);
+    makePDF('Payroll123 Token', 'Token', array($body), 'Token');
+}
+
+if ($user = $_REQUEST['emailtoken']) {
+
+    SECURITY::sendTokenEmail($user, EMPLOYEE::TBL);
+}*/
+
+
+
+function grid_format($col, $val, $row, $orow)
+{
+    global $_company;
+
+   if($col == 'Unlock') {
+        $icon = ($orow['Blocked']) ? '<img width="20" height="20" src="img/unlock.png" />' : '';
+        return '<a href="#" onclick="loadElem(\'treePage\',\'?ajax=1&pg=lst_recandidatesusers&container=treePage&opcs=U&toggleLock='.$orow['Candidate'].'\')">'.$icon.'</a>';
+    }
+    elseif($col == 'Regenerate')
+    {
+        $icon = '<img width="20" height="20" src="img/regenerate.png" />';
+        return '<a href="#" onclick="loadElem(\'treePage\',\'?ajax=1&pg=lst_recandidatesusers&container=treePage&opcs=U&regenerate='.$orow['Candidate'].'&type='.$_REQUEST['type'].'\')">'.$icon.'</a>';
+    }
+    elseif($col == 'EmailToken')
+    {
+        $icon = '<img width="20" height="20" src="img/envelope.png" />';
+        return '<a href="#" onclick="loadElem(\'content\',\'?ajax=1&pg=lst_recandidatesusers&container=content&opcs=U&emailtoken='.$orow['Candidate'].'&type='.$_REQUEST['type'].'\')">'.$icon.'</a>';
+    }
+    elseif($col == 'ResetToken')
+    {
+        $icon = '<img width="20" height="20" src="img/broom.png" />';
+        return '<a href="#" onclick="loadElem(\'content\',\'?ajax=1&pg=lst_recandidatesusers&container=content&opcs=U&resettoken='.$orow['Candidate'].'&type='.$_REQUEST['type'].'\')">'.$icon.'</a>';
+    }
+
+    return $val;
+}
+
+function grid_confirmSave(&$extrarowdata)
+{
+    return true;
+}
+
+
+
+
+$_REQUEST['opcs'] = 'U';
+
+$fields = array(
+    array_merge(
+    addField('RECANDIDATE'),
+    array('readonly' => true, 'type' => 'text')),
+    addField('HREMPLOYEENAME'),
+    array(
+        'lbl'        => 'Email',
+        'field'        => 'Email',
+        'size'        => '70',
+		'width'        => '300',		
+        'maxlength'        => 200,
+        'required'        => true,
+        'editable'        => true,
+        'readonly' => true,
+        ),
+    array(
+        'lbl'        => text('Blocked'),
+        'field'        => 'Blocked',
+        'size'        => '20',
+        'align'        => 'center',
+        'editable'        => true,
+        'type'        => 'checkbox',
+        'hideingrid'    =>  true
+    ) ,
+    array(
+        'lbl'        => text('Unlock'),
+        'field'        => 'Unlock',
+        'size'        => '20',
+        'align'        => 'center',
+        'editable'        => false,
+    ) ,/*
+    array(
+        'lbl'        => 'Tk Seed',
+        'field'        => 'TokenSeed',
+        'size'        => '20',
+        'align'        => 'center',
+        'editable'        => false,
+    ) ,	
+    array(
+        'lbl'        => 'Regen Tk',
+        'field'        => 'Regenerate',
+        'size'        => '25',
+        'align'        => 'center',
+        'editable'        => false,
+        'hideingrid' => true,
+    ) ,
+    array(
+        'lbl'        => 'Email Tk',
+        'field'        => 'EmailToken',
+        'size'        => '25',
+        'align'        => 'center',
+        'editable'        => false,
+        'hideingrid' => true,
+
+    ) ,
+    array(
+        'lbl'        => 'Reset Tk',
+        'field'        => 'ResetToken',
+        'size'        => '25',
+        'align'        => 'center',
+        'hideingrid' => true,
+        'editable'        => false,
+    ) ,*/
+    array(
+        'lbl'        => text('Password'),
+        'field'        => 'Password',
+        'size'        => '30',
+        'align'        => 'center',
+        'editable'        => true,
+        'maxlength'        => 150,
+        'type'        => 'password',
+        'hideingrid'        => true,
+    ) ,
+    addField('INACTIVE') ,
+    addField('SYUSER') ,
+    addField('TIMESTAMP') ,
+    addField('INFO')
+);
+
+
+$sql = '
+SELECT CONCAT(C.Company, "|", C.Candidate) id, C.Candidate, CONCAT(FirstName, " ", LastName) NameEmployee, Email, Blocked, "" `Unlock`,"" Password, C.Inactive, C.`User`, C.TimeStamp, CONCAT(C.`User`, "|", UNIX_TIMESTAMP(C.TimeStamp)) info
+FROM '.CANDIDATE::TBL.' C WHERE 1=1 AND Company = ? 
+'.$where;
+
+$appendurl = '&q='.$_REQUEST['q'].'&nextfield='.$_REQUEST['nextfield'].'&listid='.$_REQUEST['listid'].'&type='.$_REQUEST['type'].'&opcs='.$_REQUEST['opcs'];
+
+processGrid(
+$caption,
+$page,
+$fields,
+'id',
+$sql,
+$params,
+$appendurl,
+'',
+$tablekey,
+$table,
+$filters,
+true,
+array() ,
+false,
+true,
+'400',
+'500',
+array('Company' => $company)
+);
+
+
+?>

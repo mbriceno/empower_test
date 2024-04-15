@@ -1,0 +1,210 @@
+<?php if (! SYS) die;
+
+require 'vars.php';
+
+$page = 'hremployeesoutflow';
+
+$params = array($lang, $country, $lang, $country, $company);
+
+initPage();
+
+initFilters();
+
+addFilter('DATERANGE');
+
+$filters['filters'][] = 
+	array(
+	'lbl' => text('Action'),
+	'type' => 'droplist',
+	'values' => array(
+		array(
+			'val' => 'E',
+			'lbl' => text('Hire')
+			),
+		array(
+			'val' => 'S',
+			'lbl' => text('Fire')
+			),
+		),
+	'onchange' => 'alert("test")'
+);
+
+addFilter('HRAREA');
+addFilter('HRSUBAREA');
+addFilter('PYPAYROLL');
+
+$filters['filters'][] = 
+	array(
+	'lbl' => text('Status'),
+	'type' => 'droplist',
+	'noshowall' => true,
+	'values' => array(
+		array(
+		'val' => '0',
+		'lbl' => 'Según acción'
+		),
+		array(
+		'val' => '1',
+		'lbl' => 'Todos'
+		)
+	)
+);
+	
+if (! $_REQUEST['fltrs']['1_from']) $_REQUEST['fltrs']['1_from'] = CORE::formatMySQLDate($GLOBALS['_company']->TMBegin);
+if (! $_REQUEST['fltrs']['1_to'])   $_REQUEST['fltrs']['1_to']   = CORE::formatMySQLDate($GLOBALS['_company']->TMEnd);  
+
+if ($_REQUEST['action'] && empty($_REQUEST['fltrs']['6']))
+{
+	$params[] = CORE::getMySQLDate($_REQUEST['fltrs']['1_from']);
+	$params[] = CORE::getMySQLDate($_REQUEST['fltrs']['1_to']);
+}
+
+function grid_format($col, $val, $row, $orow)
+{
+	global $_company, $company, $lang;
+
+	return $val;
+}
+debuglog('opcs', print_r($_REQUEST['opcs'], true));
+unset($_REQUEST['opcs']);
+
+$fields = array(
+	addField('SYCOMPANY'),
+	addField('HREMPLOYEE'),
+	addField('HREMPLOYEENAME'),
+	array(
+		'lbl' => text('Action'),
+		'field' => 'Action',
+		'size' => 30,
+		'align' => 'center',
+	),
+	array(
+		'lbl' => text('Action').' '.text('Description'),
+		'field' => 'Description',
+		'size' => 50,
+		'align' => 'LEFT',
+	),
+	array(
+		'lbl' => text('NationalID'),
+		'field' => 'NationalID',
+		'size' => 30,
+		'align' => 'center',
+	),
+	array(
+		'lbl' => text('Salary'),
+		'field' => 'Salary',
+		'size' => 10
+		),
+	array_merge(
+		addField('HRPOSITION'),
+		array('size' => '10')
+	),
+	array(
+		'lbl' => text('Position').' Desc.',
+		'field' => 'PositionDesc',
+		'size' => '30'
+		),
+	addField('HRSUBAREA'),
+	array_merge(
+		addField('DATE'),
+		array('field' => 'HireDate', 'lbl' => text('HireDate')) //text('Entry').' '.text('Date'))
+	),
+);
+
+switch ($_REQUEST['fltrs'][2]) {
+	case 'E':
+		$field = 'HireDate';
+		$fireDate = '';
+		$not = 'NOT';
+		break;
+	default:
+		$field = 'FireDate';
+		$fireDate = ', IF(A1.Type = "T" OR A2.Type = "T", '.(empty($_REQUEST['fltrs']['6']) ? $field : 'IF('.$field.' = "" OR '.$field.' IS NULL OR '.$field.' = "'.$db->minDate.'", T.Date, '.$field.')').', "") '.$field;
+		$fields[] = array_merge(
+		addField('DATE'),
+		array('field' => 'FireDate', 'lbl' => text('FireDate'))//text('Termination').' '.text('Date'))
+		);
+		break;
+}
+
+$query =
+'
+SELECT CONCAT_WS("|", E.Company, E.Employee) id,
+E.Company, E.Employee, CONCAT_WS(" ", E.FirstName, E.LastName) NameEmployee, T.Action, TX.Text Description, E.NationalID, Salary, PT.Position, PT.Text, SubArea PositionDesc, 
+IF(A1.Type IN ("H", "R") OR A2.Type IN ("H", "R"), T.Date, '.(empty($_REQUEST['fltrs']['6']) ? 'HireDate' : '""').') `Date`
+'.$fireDate.'
+FROM '.EMPLOYEE::TBL.' E 
+LEFT JOIN '.POSITION::TBL_LANG.' PT ON E.Company = PT.Company AND E.Position = PT.Position AND PT.Language = ? 
+LEFT JOIN '.POSITION::TBL.' P ON E.Company = P.Company AND E.Position = P.Position 
+LEFT JOIN '.EMPLOYEE::TBL_ACTIONS.' T ON E.Company = T.Company AND E.Employee = T.Employee
+LEFT JOIN '.CORE::TBL_ACTIONS_LANG.' TX ON TX.Country = ? AND T.Action = TX.Action AND TX.Language = ?
+LEFT JOIN '.CORE::TBL_ACTIONS.' A1 ON A1.Country = ? AND T.Action = A1.Action
+LEFT JOIN '.CORE::TBL_ACTIONS_BYCOMP.' A2 ON T.Company = A2.Company AND T.Action = A2.Action
+WHERE E.Company = ? 
+AND '.($_REQUEST['fltrs'][2] ? $not.' E.Inactive' : '(('.(empty($_REQUEST['fltrs']['6']) ? 'E.Inactive = 1 AND ' : '').'SUBSTRING(T.Action, 1, 1) = "T") OR ('.(empty($_REQUEST['fltrs']['6']) ? 'E.Inactive = 0 AND ' : '').'T.Action IN ("CO", "CR")))').'
+AND (A2.Type IN ("H", "R", "T") OR ((A2.Type IS NULL OR A2.Type = "") AND A1.Type IN ("H", "R", "T")))
+';
+
+if (! empty($_REQUEST['fltrs'][0]))
+	$query .= ' AND (E.Employee LIKE ? OR E.FirstName LIKE ? OR E.LastName LIKE ?)';
+
+if ($_REQUEST['fltrs'][2])
+	$query .= ' AND '.$field.' BETWEEN ? AND ?';
+else
+{
+	$query .= ' AND ((SUBSTRING(T.Action, 1, 1) = "T"'.(empty($_REQUEST['fltrs']['6']) ? ' AND FireDate BETWEEN ? AND ?' : '').') OR (T.Action IN ("CO", "CR")'.(empty($_REQUEST['fltrs']['6']) ? ' AND HireDate BETWEEN ? AND ?' : '').'))';
+	if (empty($_REQUEST['fltrs']['6']))
+	{
+		$params[] = CORE::getMySQLDate($_REQUEST['fltrs']['1_from']);
+		$params[] = CORE::getMySQLDate($_REQUEST['fltrs']['1_to']);
+	}
+}
+
+$filterActions = array();
+if (empty($_REQUEST['fltrs'][2]) || $_REQUEST['fltrs'][2] == 'E')
+	$filterActions[] = 'T.Action = "CO" OR T.Action = "CR"';
+if (empty($_REQUEST['fltrs'][2]) || $_REQUEST['fltrs'][2] == 'S')
+	$filterActions[] = 'SUBSTRING(T.Action, 1, 1) = "T"';
+$query .= 'AND ('.implode(' OR ', $filterActions).')';
+
+if (! empty($_REQUEST['fltrs'][3]))
+{
+	$query .= ' AND E.Area = ?';
+	$params[] = $_REQUEST['fltrs'][3];
+}
+
+if (! empty($_REQUEST['fltrs'][4]))
+{
+	$query .= ' AND E.SubArea = ?';
+	$params[] = $_REQUEST['fltrs'][4];
+}
+if(! empty($_REQUEST['fltrs'][5]))
+{
+	$query .= 'AND E.Payroll = ?';
+	$params[] = $_REQUEST['fltrs'][5];
+}
+
+//echo $query;print_r($params);
+
+debuglog('outflowquery', print_r(DB::getBuildedQuery($query, $params), true));
+
+processGrid(
+$caption,
+$page,
+$fields,
+'id',
+$query,
+$params,
+'&q='.$_REQUEST['q'].'&nextfield='.$_REQUEST['nextfield'].'&listid='.$_REQUEST['listid'],
+'',
+$tablekey,
+$table,
+$filters,
+true,
+array(),
+false,
+true,
+$formwidth, 
+$formheight,
+array('Company' => $company, 'User' => $userid)
+);

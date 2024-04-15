@@ -1,0 +1,167 @@
+<?php if (! SYS) die;
+
+//$caption = 'Evaluaciones';
+$page = 'recandidatesreferals';
+
+function grid_format($col, $val, $row, $orow)
+{
+	global $db_back;
+	
+	if ($_REQUEST['fltrs'][0] == 'C')
+	{
+		if ($col == 'NameEmployee')
+		{
+			$r = $db_back->getOne('SELECT FirstName, LastName FROM '.EMPLOYEE::TBL.' WHERE Company = ? AND Employee = ?', array($orow['Company'], $orow['Referrer']));
+			return $r['FirstName'].' '.$r['LastName'];
+		}
+	}
+	
+	return $val;
+}
+
+$params = array($company);
+
+initPage();
+
+if ($_REQUEST['fltrs'][0] == 'E')
+{
+	$table = 'RE_EmployeesReferals';
+	$table2 = EMPLOYEE::TBL;
+	$field = 'Employee';
+}
+else
+{
+	$table = 'RE_CandidatesReferals';
+	$table2 = CANDIDATE::TBL;
+	$field = 'Candidate';
+	$db_back = $db;
+	$db = $db_GLIAR;
+}
+	
+initFilters();
+
+$filters['filters'][] = array(
+'lbl' => text('Type'),
+'align' => 'center',
+'type' => 'droplist',
+'values' => array(array('val' => 'C', 'lbl' => text('External')), array('val' => 'E', 'lbl' => text('Internal'))),
+'noshowall' => true
+);
+
+$fields = array(
+addField('SYCOMPANY'),
+addField($_REQUEST['fltrs'][0] == 'E' ? 'HREMPLOYEE' : 'RECANDIDATE'),
+array_merge(addField('HREMPLOYEENAME'),array('field' => 'NameCandidate')),
+addField('DATE'),
+
+array(
+'lbl' => Text('Time'),
+'field' => 'Time',
+'required' => true,
+'size' => '100',
+'maxlength' => 20,
+'width' => '150',
+'editable' => true,
+'hideingrid' => true,
+'align' => 'center'
+),
+array_merge(addField('HREMPLOYEE'), array('field' => 'Referrer')),
+addField('HREMPLOYEENAME'),
+
+array(
+'lbl' => text('Status'),
+'field' => 'Status',
+'size' => '20',
+'maxlength' => 1,
+'editable' => true,
+'required' => true,
+'align' => 'center',
+'type' => 'droplist',
+'values' => array(
+	array(
+	'lbl' => text('New'),
+	'val' => 'N'
+	),
+	array(
+	'lbl' => text('Evaluation'),
+	'val' => 'E'
+	),
+	array(
+	'lbl' => text('Submitted'),
+	'val' => 'S'
+	),
+	array(
+	'lbl' => text('Approved'),
+	'val' => 'A'
+	),
+	array(
+	'lbl' => text('Rejected'),
+	'val' => 'R'
+	),
+	array(
+	'lbl' => text('Canceled'),
+	'val' => 'C'
+	),
+)
+),
+
+addField('NOTE'),
+addField('INACTIVE'),
+array_merge(addField('SYUSER'), array('size' => '80')),
+array_merge(addField('TIMESTAMP'), array('size' => '160')),
+array_merge(addField('INFO'), array('size' => '160'))
+);
+
+$query = '
+SELECT CONCAT(A.Company,"|", A.'.$field.',"|", A.Date,"|", A.Referrer) id, 
+A.Company, A.'.$field.',CONCAT(E.FirstName, " ", E.LastName) NameCandidate ,`Date`, A.Time, A.Referrer, '.($_REQUEST['fltrs'][0] == 'E' ? 'CONCAT(E2.FirstName, " ", E2.LastName)' : '""').' NameEmployee, A.Status, Note,A.Inactive, A.`User`, A.TimeStamp, CONCAT(A.`User`, "|", UNIX_TIMESTAMP(A.TimeStamp)) info
+FROM '.$table.' A
+'.($_REQUEST['fltrs'][0] == 'E' ? 'LEFT JOIN ' .EMPLOYEE::TBL. ' E2 ON A.Company = E2.Company AND A.Referrer = E2.Employee' : '').'
+LEFT JOIN ' .$table2. ' E ON A.Company = E.Company AND A.'.$field.' = E.'.$field.'
+WHERE A.Company '.($_REQUEST['fltrs'][0] == 'E' ? '= ?' : 'IN ("GLIAR", ?)').' 
+'.$where;
+
+//debuglog('query', $query.' /n'.print_r($params, true).print_r($fields, true));
+
+//print_r($fields);die;
+
+//$db->debug=$db->log=true;
+
+processGrid(
+$caption,
+$page,
+$fields,
+'id',
+$query,
+$params,
+'&q='.$_REQUEST['q'].'&nextfield='.$_REQUEST['nextfield'].'&listid='.$_REQUEST['listid'],
+'',
+$tablekey,
+$table,
+$filters,
+true,
+array(),
+false,
+true,
+$formheight, 
+$formwidth,
+array('Company' => $company, 'User' => $userid),
+'',
+false,
+false,
+array(),
+'',
+'',
+'',
+'',
+$_REQUEST['fltrs'][0] == 'E' ? array($db_GLIAR) : array()
+);
+
+if ($_REQUEST['action']) die;
+?>
+<script>
+$('#gf_recandidatesreferals_0').change(function()
+{
+	$('#gf_recandidatesreferals_set').trigger('click');
+});
+</script>
